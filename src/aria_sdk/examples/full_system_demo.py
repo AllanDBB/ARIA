@@ -26,6 +26,7 @@ import argparse
 import sys
 import time
 import struct
+import socket
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import List, Optional, Dict
@@ -57,6 +58,7 @@ except ImportError:
 from aria_sdk.domain.entities import Detection, Envelope, Priority
 from aria_sdk.telemetry.codec import ProtobufCodec
 from aria_sdk.telemetry.compression import Lz4Compressor, ZstdCompressor
+from aria_sdk.storage.data_storage import DataStorage
 
 # Import cognitive components
 sys.path.insert(0, str(Path(__file__).parent))
@@ -133,7 +135,9 @@ class FullSystemDemo:
         model_size: str = 'n',
         confidence: float = 0.5,
         enable_telemetry: bool = True,
-        energy_drain_rate: float = 0.5
+        energy_drain_rate: float = 0.5,
+        stream_host: Optional[str] = None,
+        stream_port: int = 5555
     ):
         """Initialize full system.
         
@@ -148,8 +152,25 @@ class FullSystemDemo:
                               Higher = faster drain for testing
                               Examples: 0.5=slow(200s), 1.0=normal(100s), 
                                        2.0=fast(50s), 5.0=very_fast(20s)
+            stream_host: Host to stream telemetry to (None = no streaming)
+            stream_port: Port for streaming
         """
         self.console = Console()
+        
+        # Streaming setup
+        self.stream_socket = None
+        self.envelopes_sent = 0  # Track sent envelopes
+        if stream_host:
+            self.console.print(f"[cyan]📡 Connecting to receiver at {stream_host}:{stream_port}...[/cyan]")
+            try:
+                self.stream_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                self.stream_socket.connect((stream_host, stream_port))
+                self.console.print(f"[green]✅ Connected to receiver[/green]")
+            except Exception as e:
+                self.console.print(f"[red]❌ Failed to connect to receiver: {e}[/red]")
+                self.stream_socket = None
+        else:
+            self.console.print(f"[yellow]⚠️  Streaming disabled (no --stream parameter)[/yellow]")
         
         # Vision system
         self.console.print(f"\n[cyan]🎥 Initializing YOLOv{yolo_version} vision system...[/cyan]")
@@ -175,6 +196,10 @@ class FullSystemDemo:
             self.lz4_compressor = Lz4Compressor(level=0)  # Fast compression
             self.zstd_compressor = ZstdCompressor(level=3)  # Balanced compression
             self.telemetry_stats = TelemetryStats()
+        
+        # Data storage
+        self.console.print(f"[cyan]💾 Initializing data storage system...[/cyan]")
+        self.storage = DataStorage(storage_dir=Path("./data"))
         
         # Input source
         self.camera_id = camera_id
@@ -211,6 +236,34 @@ class FullSystemDemo:
         if self.cap:
             self.cap.release()
         cv2.destroyAllWindows()
+        if self.stream_socket:
+            self.stream_socket.close()
+    
+    def _send_envelope(self, envelope: Envelope, compressed_data: bytes):
+        """Send envelope to receiver over network.
+        
+        Protocol:
+        - 4 bytes: message length (network byte order)
+        - JSON metadata line
+        - Compressed binary data
+        """
+        # Build metadata
+        metadata = {
+            'envelope_id': envelope.envelope_id,
+            'topic': envelope.topic,
+            'priority': envelope.priority.name,
+            'timestamp': envelope.timestamp,
+            'compression': 'lz4',
+            'payload_size': envelope.payload_size
+        }
+        metadata_json = json.dumps(metadata).encode('utf-8')
+        
+        # Build message: metadata + newline + binary data
+        message = metadata_json + b'\n' + compressed_data
+        
+        # Send with length prefix
+        length_prefix = struct.pack('!I', len(message))
+        self.stream_socket.sendall(length_prefix + message)
     
     def process_telemetry(self, detections: List[Detection]) -> Dict:
         """Process detections through telemetry pipeline.
@@ -218,7 +271,11 @@ class FullSystemDemo:
         Returns:
             Dict with telemetry metrics
         """
-        if not self.enable_telemetry or not detections:
+        if not self.enable_telemetry:
+            return {}
+        
+        if not detections:
+            # No detections, nothing to transmit
             return {}
         
         # Create envelopes from detections
@@ -252,6 +309,7 @@ class FullSystemDemo:
             encoded_parts.append(self.codec.encode(envelope))
         encoded_batch = b''.join(encoded_parts)
         t1 = time.perf_counter()
+        encode_time_ms = (t1 - t0) * 1000
         self.telemetry_stats.encoding_time += (t1 - t0)
         self.telemetry_stats.total_encoded_bytes += len(encoded_batch)
         
@@ -259,6 +317,7 @@ class FullSystemDemo:
         t0 = time.perf_counter()
         lz4_compressed = self.lz4_compressor.compress(encoded_batch)
         t1 = time.perf_counter()
+        lz4_time_ms = (t1 - t0) * 1000
         self.telemetry_stats.lz4_time += (t1 - t0)
         self.telemetry_stats.total_lz4_bytes += len(lz4_compressed)
         
@@ -266,8 +325,36 @@ class FullSystemDemo:
         t0 = time.perf_counter()
         zstd_compressed = self.zstd_compressor.compress(encoded_batch)
         t1 = time.perf_counter()
+        zstd_time_ms = (t1 - t0) * 1000
         self.telemetry_stats.zstd_time += (t1 - t0)
         self.telemetry_stats.total_zstd_bytes += len(zstd_compressed)
+        
+        # Store telemetry data for each envelope (using LZ4 as primary)
+        for envelope in envelopes:
+            encoded = self.codec.encode(envelope)
+            compressed = self.lz4_compressor.compress(encoded)
+            self.storage.store_telemetry(
+                envelope=envelope,
+                encoded_data=encoded,
+                compressed_data=compressed,
+                compression_algo='lz4',
+                encoding_time=encode_time_ms / len(envelopes),
+                compression_time=lz4_time_ms / len(envelopes)
+            )
+            
+            # Stream to receiver if connected
+            if self.stream_socket:
+                try:
+                    self._send_envelope(envelope, compressed)
+                    self.envelopes_sent += 1
+                    # Debug: confirm sending (uncomment for verbose mode)
+                    if self.envelopes_sent <= 5 or self.envelopes_sent % 50 == 0:
+                        self.console.print(f"[dim]📤 Sent envelope #{self.envelopes_sent}: {envelope.topic}[/dim]")
+                except Exception as e:
+                    self.console.print(f"[red]❌ Stream error: {e}[/red]")
+                    import traceback
+                    traceback.print_exc()
+                    self.stream_socket = None
         
         return {
             'envelopes': len(envelopes),
@@ -313,6 +400,26 @@ class FullSystemDemo:
         decision = self.planner.decide(self.world_model, homeostasis_state, self.novelty_detector)
         
         self.loop_count += 1
+        
+        # 8. STORAGE: Store cognitive state and decision
+        avg_novelty = sum(ns.score for ns in novelty_scores) / len(novelty_scores) if novelty_scores else 0.0
+        self.storage.store_cognitive_state(
+            loop_id=self.loop_count,
+            energy=homeostasis_state.energy,
+            temperature=homeostasis_state.temperature,
+            novelty_drive=avg_novelty,
+            num_detections=len(detections),
+            unique_classes=len(set(d.class_name for d in detections))
+        )
+        
+        self.storage.store_decision(
+            loop_id=self.loop_count,
+            action=decision.action.value if hasattr(decision.action, 'value') else str(decision.action),
+            target=decision.target,
+            reasoning=decision.reasoning,
+            priority_level=decision.priority,
+            energy_level=homeostasis_state.energy
+        )
         
         return annotated, detections, novelty_scores, decision, homeostasis_state, telemetry_metrics
     
@@ -509,13 +616,28 @@ class FullSystemDemo:
         if self.enable_telemetry:
             stats = self.telemetry_stats
             summary_table.add_row("", "")
+            summary_table.add_row("Total Detections", f"{stats.total_detections:,}")
             summary_table.add_row("Telemetry Envelopes", f"{stats.total_envelopes:,}")
-            summary_table.add_row("Encoded Data", f"{stats.total_encoded_bytes / 1024:.1f} KB")
-            summary_table.add_row("LZ4 Compressed", f"{stats.total_lz4_bytes / 1024:.1f} KB ({stats.lz4_compression_ratio:.2f}x)")
-            summary_table.add_row("Zstd Compressed", f"{stats.total_zstd_bytes / 1024:.1f} KB ({stats.zstd_compression_ratio:.2f}x)")
-            summary_table.add_row("Encoding Throughput", f"{stats.encoding_throughput:.1f} MB/s")
-            summary_table.add_row("LZ4 Throughput", f"{stats.lz4_throughput:.1f} MB/s")
-            summary_table.add_row("Zstd Throughput", f"{stats.zstd_throughput:.1f} MB/s")
+            
+            # Show warning if no detections
+            if stats.total_envelopes == 0:
+                summary_table.add_row("⚠️  WARNING", "No envelopes sent (no detections)")
+            else:
+                summary_table.add_row("Encoded Data", f"{stats.total_encoded_bytes / 1024:.1f} KB")
+                summary_table.add_row("LZ4 Compressed", f"{stats.total_lz4_bytes / 1024:.1f} KB ({stats.lz4_compression_ratio:.2f}x)")
+                summary_table.add_row("Zstd Compressed", f"{stats.total_zstd_bytes / 1024:.1f} KB ({stats.zstd_compression_ratio:.2f}x)")
+                summary_table.add_row("Encoding Throughput", f"{stats.encoding_throughput:.1f} MB/s")
+                summary_table.add_row("LZ4 Throughput", f"{stats.lz4_throughput:.1f} MB/s")
+                summary_table.add_row("Zstd Throughput", f"{stats.zstd_throughput:.1f} MB/s")
+            
+            # Show streaming status
+            summary_table.add_row("", "")
+            if hasattr(self, 'envelopes_sent'):
+                summary_table.add_row("Envelopes Streamed", f"{self.envelopes_sent:,}")
+            if self.stream_socket:
+                summary_table.add_row("Stream Status", "✅ Connected")
+            elif hasattr(self, 'stream_socket'):
+                summary_table.add_row("Stream Status", "❌ Disconnected or not configured")
         
         summary_table.add_row("", "")
         summary_table.add_row("Final Energy", f"{self.homeostasis.energy:.1f}%")
@@ -524,6 +646,13 @@ class FullSystemDemo:
         self.console.print(summary_table)
         self.console.print("="*70)
         self.console.print("[bold green]✅ Full ARIA system validated![/bold green]\n")
+        
+        # Close storage session and export data
+        self.storage.close_session(total_frames=self.frame_count, total_loops=self.loop_count)
+        export_file = self.storage.export_session_json()
+        self.console.print(f"[cyan]💾 Data saved to: {self.storage.storage_dir}[/cyan]")
+        self.console.print(f"[cyan]📊 Session ID: {self.storage.session_id}[/cyan]")
+        self.console.print(f"[cyan]📄 Summary exported to: {export_file}[/cyan]\n")
 
 
 def main():
@@ -544,6 +673,8 @@ def main():
     parser.add_argument('--no-video', action='store_true', help='Disable video window')
     parser.add_argument('--no-telemetry', action='store_true', help='Disable telemetry pipeline')
     parser.add_argument('--telemetry-test', action='store_true', help='Run telemetry performance test')
+    parser.add_argument('--stream', type=str, metavar='HOST', help='Stream telemetry to receiver at HOST (e.g., 127.0.0.1)')
+    parser.add_argument('--port', type=int, default=5555, help='Receiver port (default: 5555)')
     
     args = parser.parse_args()
     
@@ -566,7 +697,9 @@ def main():
             model_size=args.model_size,
             confidence=args.confidence,
             enable_telemetry=not args.no_telemetry,
-            energy_drain_rate=args.energy_drain
+            energy_drain_rate=args.energy_drain,
+            stream_host=args.stream,
+            stream_port=args.port
         )
         
         demo.run(

@@ -50,6 +50,14 @@ data/meda/
 *.tar.gz
 *.zip
 
+# Storage data (databases, telemetry, session exports)
+data/
+*.db
+*.db-journal
+*.bin
+*.bin.gz
+*_export.json
+
 # Logs
 *.log
 
