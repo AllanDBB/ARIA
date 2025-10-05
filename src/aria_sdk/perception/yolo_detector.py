@@ -33,11 +33,12 @@ from aria_sdk.domain.entities import Detection, ImageData
 
 
 class YoloDetector:
-    """YOLOv8 object detector."""
+    """YOLO object detector (supports YOLOv8 and YOLOv11)."""
     
     def __init__(
         self,
         model_size: str = 'n',  # 'n', 's', 'm', 'l', 'x'
+        model_version: str = '11',  # '8' or '11'
         confidence_threshold: float = 0.5,
         iou_threshold: float = 0.45,
         device: str = 'cpu'  # 'cpu' or 'cuda'
@@ -46,6 +47,7 @@ class YoloDetector:
         
         Args:
             model_size: Model size ('n'=nano, 's'=small, 'm'=medium, 'l'=large, 'x'=xlarge)
+            model_version: YOLO version ('8' or '11')
             confidence_threshold: Minimum confidence for detections
             iou_threshold: IoU threshold for NMS
             device: Device to run inference ('cpu' or 'cuda')
@@ -53,14 +55,15 @@ class YoloDetector:
         self.confidence_threshold = confidence_threshold
         self.iou_threshold = iou_threshold
         self.device = device
+        self.model_version = model_version
         
-        # Load YOLO model
-        model_name = f'yolov8{model_size}.pt'
+        # Load YOLO model (v8 or v11)
+        model_name = f'yolo{model_version}{model_size}.pt' if model_version == '11' else f'yolov8{model_size}.pt'
         print(f"📦 Loading YOLO model: {model_name}")
         self.model = YOLO(model_name)
         self.model.to(device)
         
-        print(f"✅ YOLO {model_size} loaded on {device}")
+        print(f"✅ YOLOv{model_version} {model_size} loaded on {device}")
         print(f"   Confidence threshold: {confidence_threshold}")
         print(f"   IoU threshold: {iou_threshold}")
     

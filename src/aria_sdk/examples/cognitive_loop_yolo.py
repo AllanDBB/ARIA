@@ -78,7 +78,8 @@ class RealCognitiveLoop:
         camera_id: int = 0,
         video_path: Optional[str] = None,
         model_size: str = 'n',
-        confidence: float = 0.5
+        confidence: float = 0.5,
+        energy_drain_rate: float = 0.5
     ):
         """Initialize real cognitive loop.
         
@@ -87,6 +88,7 @@ class RealCognitiveLoop:
             video_path: Path to video file (if not using camera)
             model_size: YOLO model size ('n', 's', 'm', 'l', 'x')
             confidence: Detection confidence threshold
+            energy_drain_rate: Energy drain rate in % per second (default: 0.5)
         """
         self.console = Console()
         
@@ -100,12 +102,12 @@ class RealCognitiveLoop:
         
         # Cognitive components
         self.novelty_detector = SimpleNoveltyDetector()
-        self.homeostasis = SimpleHomeostasisMonitor()
+        self.homeostasis = SimpleHomeostasisMonitor(energy_drain_rate=energy_drain_rate)
         self.world_model = SimpleWorldModel()
         self.planner = SimplePlanner()
         
         # Input source
-        
+
         self.camera_id = camera_id
         self.video_path = video_path
         self.cap = None
@@ -463,6 +465,13 @@ Examples:
     )
     
     parser.add_argument(
+        '--energy-drain',
+        type=float,
+        default=0.5,
+        help='Energy drain rate (%%/s): 0.5=slow(200s), 1.0=normal(100s), 2.0=fast(50s), 5.0=very_fast(20s) (default: 0.5)'
+    )
+    
+    parser.add_argument(
         '--max-frames',
         type=int,
         help='Maximum frames to process (default: infinite)'
@@ -486,7 +495,8 @@ Examples:
             camera_id=args.camera,
             video_path=args.video,
             model_size=args.model_size,
-            confidence=args.confidence
+            confidence=args.confidence,
+            energy_drain_rate=args.energy_drain
         )
         
         loop.run(

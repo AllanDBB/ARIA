@@ -105,10 +105,21 @@ class HomeostasisState:
 class SimpleHomeostasisMonitor:
     """Monitors internal state and homeostasis."""
     
-    def __init__(self):
+    def __init__(self, energy_drain_rate: float = 0.5):
+        """Initialize homeostasis monitor.
+        
+        Args:
+            energy_drain_rate: Energy drain rate in % per second (default: 0.5)
+                              Higher = faster energy drain
+                              Examples: 0.5 = slow (200s to drain)
+                                       1.0 = normal (100s to drain)
+                                       2.0 = fast (50s to drain)
+                                       5.0 = very fast (20s to drain)
+        """
         self.energy = 100.0
         self.temperature = 25.0
         self.cpu_load = 0.0
+        self.energy_drain_rate = energy_drain_rate
     
     def update(self, dt: float):
         """Update internal state.
@@ -116,8 +127,8 @@ class SimpleHomeostasisMonitor:
         Args:
             dt: Time delta in seconds
         """
-        # Energy decreases over time
-        self.energy -= 0.5 * dt  # 0.5% per second
+        # Energy decreases over time (configurable rate)
+        self.energy -= self.energy_drain_rate * dt
         self.energy = max(0.0, self.energy)
         
         # Temperature varies with CPU load
@@ -284,10 +295,15 @@ class SimplePlanner:
 class CognitiveLoopDemo:
     """Demonstrates the cognitive loop."""
     
-    def __init__(self):
+    def __init__(self, energy_drain_rate: float = 0.5):
+        """Initialize cognitive loop demo.
+        
+        Args:
+            energy_drain_rate: Energy drain rate in % per second (default: 0.5)
+        """
         self.console = Console()
         self.novelty_detector = SimpleNoveltyDetector()
-        self.homeostasis = SimpleHomeostasisMonitor()
+        self.homeostasis = SimpleHomeostasisMonitor(energy_drain_rate=energy_drain_rate)
         self.world_model = SimpleWorldModel()
         self.planner = SimplePlanner()
         
@@ -564,10 +580,17 @@ def main():
         help="Delay between iterations in seconds (default: 0.5)"
     )
     
+    parser.add_argument(
+        '--energy-drain',
+        type=float,
+        default=0.5,
+        help='Energy drain rate (%%/s): 0.5=slow(200s), 1.0=normal(100s), 2.0=fast(50s), 5.0=very_fast(20s) (default: 0.5)'
+    )
+    
     args = parser.parse_args()
     
     try:
-        demo = CognitiveLoopDemo()
+        demo = CognitiveLoopDemo(energy_drain_rate=args.energy_drain)
         demo.run_interactive(iterations=args.iterations, delay=args.delay)
         
     except Exception as e:
