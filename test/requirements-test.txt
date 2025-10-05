@@ -1,0 +1,20 @@
+# Test Dependencies for ARIA SDK Test Suite
+
+# Core testing framework
+pytest>=7.0.0
+
+# Coverage reporting
+pytest-cov>=3.0.0
+
+# Parallel test execution (speeds up test runs)
+pytest-xdist>=2.5.0
+
+# HTML test reports
+pytest-html>=3.1.1
+
+# Additional utilities for better test output
+pytest-timeout>=2.1.0
+pytest-mock>=3.6.0
+
+# Rich output (already in main requirements)
+# rich>=10.0.0
