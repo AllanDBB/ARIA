@@ -1,0 +1,96 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "aria-sdk"
+version = "0.1.0"
+description = "Production-grade robot-side SDK for autonomous systems"
+authors = [
+    {name = "ARIA Robotics Team", email = "team@aria-robotics.com"}
+]
+readme = "README.md"
+license = {text = "MIT OR Apache-2.0"}
+requires-python = ">=3.10"
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+
+dependencies = [
+    "numpy>=1.24.0",
+    "protobuf>=4.24.0",
+    "lz4>=4.3.0",
+    "zstandard>=0.22.0",
+    "pynacl>=1.5.0",
+    "cryptography>=41.0.0",
+    "aioquic>=0.9.21",
+    "onnxruntime>=1.16.0",
+    "opencv-python>=4.8.0",
+    "scipy>=1.11.0",
+    "reedsolo>=1.7.0",
+    "pydantic>=2.4.0",
+    "pyyaml>=6.0",
+    "click>=8.1.0",
+    "rich>=13.5.0",
+    "loguru>=0.7.0",
+]
+
+[project.optional-dependencies]
+gpu = ["onnxruntime-gpu>=1.16.0"]
+dev = [
+    "pytest>=7.4.0",
+    "pytest-asyncio>=0.21.0",
+    "pytest-cov>=4.1.0",
+    "pytest-benchmark>=4.0.0",
+    "hypothesis>=6.88.0",
+    "black>=23.7.0",
+    "ruff>=0.0.290",
+    "mypy>=1.5.0",
+]
+
+[project.scripts]
+aria-send = "aria_sdk.cli.aria_send:main"
+aria-recv = "aria_sdk.cli.aria_recv:main"
+aria-bench = "aria_sdk.cli.aria_bench:cli"
+aria-demo-brain = "aria_sdk.cli.aria_demo_brain:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.black]
+line-length = 100
+target-version = ["py310", "py311"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.mypy]
+python_version = "3.10"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+asyncio_mode = "auto"
+addopts = "--cov=aria_sdk --cov-report=html --cov-report=term"
+
+[tool.coverage.run]
+source = ["src/aria_sdk"]
+omit = ["*/tests/*", "*/cli/*"]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise NotImplementedError",
+    "if TYPE_CHECKING:",
+    "if __name__ == .__main__.:",
+]
