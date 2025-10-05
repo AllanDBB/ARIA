@@ -1,0 +1,15 @@
+[package]
+name = "aria-ima"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[dependencies]
+aria-domain = { path = "../aria-domain" }
+
+nalgebra = { workspace = true }
+chrono = { workspace = true }
+serde = { workspace = true }
+
+[dev-dependencies]

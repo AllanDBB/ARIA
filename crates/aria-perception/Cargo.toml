@@ -1,0 +1,19 @@
+[package]
+name = "aria-perception"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[dependencies]
+aria-domain = { path = "../aria-domain" }
+
+ort = { workspace = true }
+image = { workspace = true }
+ndarray = { workspace = true }
+nalgebra = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+async-trait = { workspace = true }
+
+[dev-dependencies]

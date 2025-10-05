@@ -1,0 +1,24 @@
+[package]
+name = "aria-sdk"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[dependencies]
+aria-domain = { path = "../aria-domain" }
+aria-telemetry = { path = "../aria-telemetry" }
+aria-perception = { path = "../aria-perception" }
+aria-brain = { path = "../aria-brain" }
+aria-ima = { path = "../aria-ima" }
+aria-ports = { path = "../aria-ports" }
+
+tokio = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+
+[lib]
+name = "aria_sdk"
+path = "src/lib.rs"
+
+[dev-dependencies]

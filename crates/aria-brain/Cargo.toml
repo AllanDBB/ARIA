@@ -1,0 +1,20 @@
+[package]
+name = "aria-brain"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[dependencies]
+aria-domain = { path = "../aria-domain" }
+
+tokio = { workspace = true }
+async-trait = { workspace = true }
+serde = { workspace = true }
+nalgebra = { workspace = true }
+chrono = { workspace = true }
+uuid = { version = "1.10", features = ["v4"] }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+
+[dev-dependencies]

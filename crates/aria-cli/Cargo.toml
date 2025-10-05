@@ -1,0 +1,38 @@
+[package]
+name = "aria-cli"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "aria-send"
+path = "src/aria_send.rs"
+
+[[bin]]
+name = "aria-recv"
+path = "src/aria_recv.rs"
+
+[[bin]]
+name = "aria-bench"
+path = "src/aria_bench.rs"
+
+[[bin]]
+name = "aria-demo-brain"
+path = "src/aria_demo_brain.rs"
+
+[dependencies]
+aria-sdk = { path = "../aria-sdk" }
+aria-domain = { path = "../aria-domain" }
+aria-telemetry = { path = "../aria-telemetry" }
+aria-brain = { path = "../aria-brain" }
+aria-ports = { path = "../aria-ports" }
+
+tokio = { workspace = true }
+clap = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+serde_json = { workspace = true }
+anyhow = { workspace = true }
+
+[dev-dependencies]

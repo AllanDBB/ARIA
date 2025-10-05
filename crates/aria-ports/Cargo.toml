@@ -1,0 +1,16 @@
+[package]
+name = "aria-ports"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[dependencies]
+aria-domain = { path = "../aria-domain" }
+
+tokio = { workspace = true }
+async-trait = { workspace = true }
+chrono = { workspace = true }
+nalgebra = { workspace = true }
+
+[dev-dependencies]

@@ -1,0 +1,103 @@
+[workspace]
+resolver = "2"
+
+members = [
+    "crates/aria-domain",
+    "crates/aria-telemetry",
+    "crates/aria-perception",
+    "crates/aria-brain",
+    "crates/aria-ima",
+    "crates/aria-ports",
+    "crates/aria-sdk",
+    "crates/aria-cli",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+authors = ["ARIA Robotics Team"]
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/aria-robotics/aria-sdk"
+
+[workspace.dependencies]
+# Core async runtime
+tokio = { version = "1.40", features = ["full"] }
+async-trait = "0.1"
+
+# Serialization
+prost = "0.13"
+prost-types = "0.13"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+bincode = "1.3"
+
+# Compression
+lz4 = "1.25"
+zstd = "0.13"
+
+# Cryptography
+ring = "0.17"
+rustls = "0.23"
+ed25519-dalek = "2.1"
+chacha20poly1305 = "0.10"
+rand = "0.8"
+
+# Networking
+quinn = "0.11"
+rustls-pemfile = "2.1"
+
+# FEC
+reed-solomon-erasure = "6.0"
+
+# ONNX Runtime
+ort = { version = "2.0", features = ["load-dynamic"] }
+
+# Image/Video processing
+opencv = { version = "0.92", default-features = false, features = ["rgb"], optional = true }
+image = "0.25"
+
+# Audio processing
+hound = "3.5"
+rubato = "0.15"
+
+# Linear algebra / Math
+nalgebra = "0.33"
+ndarray = "0.16"
+
+# Time/Clock
+chrono = "0.4"
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+log = "0.4"
+
+# Error handling
+thiserror = "1.0"
+anyhow = "1.0"
+
+# Testing
+mockall = "0.13"
+
+# CLI
+clap = { version = "4.5", features = ["derive"] }
+tabled = "0.16"
+
+# Config
+toml = "0.8"
+
+# Metrics
+prometheus = { version = "0.13", optional = true }
+
+[profile.release]
+opt-level = 3
+lto = "fat"
+codegen-units = 1
+strip = true
+panic = "abort"
+
+[profile.bench]
+inherits = "release"
+
+[profile.dev]
+opt-level = 1
